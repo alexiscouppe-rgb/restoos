@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
         external_id: `import_${Date.now()}_${i}`,
         author_name: row.author_name || "Anonyme",
         rating,
-        comment: row.comment || null,
+        content: row.comment || null,
         published_at: publishedAt,
         url: row.url || null,
         sentiment: rating >= 4 ? "positive" : rating === 3 ? "neutral" : "negative",

@@ -145,7 +145,7 @@ Génère une réponse appropriée.`,
 
   // Mettre à jour en base
   await admin.from("reviews").update({
-    owner_reply: finalReply,
+    reply: finalReply,
     replied_at: new Date().toISOString(),
   }).eq("restaurant_id", restaurantId).eq("external_id", reviewId);
 

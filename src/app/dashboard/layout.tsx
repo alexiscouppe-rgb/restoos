@@ -32,7 +32,7 @@ export default async function DashboardLayout({
     redirect("/onboarding");
   }
 
-  const restaurant = membership.restaurants as {
+  const restaurant = membership.restaurants as unknown as {
     id: string;
     name: string;
     logo_url: string | null;

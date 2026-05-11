@@ -47,7 +47,7 @@ export default async function DashboardPage() {
         .from("reviews")
         .select("*", { count: "exact", head: true })
         .eq("restaurant_id", restaurantId)
-        .is("owner_reply", null),
+        .is("reply", null),
     ]);
 
   // Réservations du jour
@@ -69,7 +69,7 @@ export default async function DashboardPage() {
     .order("last_message_at", { ascending: false })
     .limit(5);
 
-  const restaurant = membership.restaurants as { name: string };
+  const restaurant = membership.restaurants as unknown as { name: string };
 
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Bonjour" : hour < 18 ? "Bon après-midi" : "Bonsoir";

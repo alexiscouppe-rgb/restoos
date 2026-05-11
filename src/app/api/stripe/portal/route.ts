@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import Stripe from "stripe";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: "2025-04-30.basil",
+  apiVersion: "2025-02-24.acacia",
 });
 
 export async function GET(request: NextRequest) {
@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
     .eq("id", restaurantId!)
     .single();
 
-  const org = restaurant?.organizations as { stripe_customer_id: string | null } | null;
+  const org = restaurant?.organizations as unknown as { stripe_customer_id: string | null } | null;
   const customerId = org?.stripe_customer_id;
 
   if (!customerId) {

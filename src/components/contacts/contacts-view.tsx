@@ -456,7 +456,7 @@ function NewContactModal({
     phone: "",
     notes: "",
     tags: [] as string[],
-    vip: false,
+    is_vip: false,
   });
 
   function update(field: string, value: string | boolean | string[]) {
@@ -486,7 +486,7 @@ function NewContactModal({
         phone: form.phone || null,
         notes: form.notes || null,
         tags: form.tags,
-        vip: form.is_vip,
+        is_vip: form.is_vip,
       })
       .select()
       .single();

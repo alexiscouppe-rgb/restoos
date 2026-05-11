@@ -302,7 +302,7 @@ export function InboxView({ initialConversations, restaurantId, currentUserId }:
               {(() => {
                 const Icon = channelIcon[selected.channel];
                 const color = channelColor[selected.channel];
-                const contact = selected.contact as { first_name?: string; last_name?: string; vip?: boolean } | undefined;
+                const contact = selected.contact as { first_name?: string; last_name?: string; is_vip?: boolean } | undefined;
                 const name = contact
                   ? `${contact.first_name} ${contact.last_name ?? ""}`.trim()
                   : "Client inconnu";

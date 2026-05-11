@@ -72,10 +72,10 @@ export async function POST(request: NextRequest) {
       external_id: review.reviewId,
       author_name: review.reviewer?.displayName ?? "Anonyme",
       rating,
-      comment: review.comment ?? null,
+      content: review.comment ?? null,
       published_at: review.createTime,
       sentiment: rating >= 4 ? "positive" : rating === 3 ? "neutral" : "negative",
-      owner_reply: review.reviewReply?.comment ?? null,
+      reply: review.reviewReply?.comment ?? null,
       replied_at: review.reviewReply?.updateTime ?? null,
     }, { onConflict: "restaurant_id,external_id" });
     if (error) skipped++; else imported++;

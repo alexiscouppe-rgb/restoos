@@ -41,7 +41,7 @@ export function ReviewsView({ initialReviews, restaurantId }: { initialReviews: 
   const [filter, setFilter] = useState<"all" | "pending">("pending");
 
   const filtered = reviews.filter(r =>
-    filter === "all" ? true : r.owner_reply === null
+    filter === "all" ? true : r.reply === null
   );
 
   async function generateAIDraft(review: Review) {
@@ -78,14 +78,14 @@ export function ReviewsView({ initialReviews, restaurantId }: { initialReviews: 
     const supabase = createClient();
     const { error } = await supabase
       .from("reviews")
-      .update({ owner_reply: text.trim(), replied_at: new Date().toISOString() })
+      .update({ reply: text.trim(), replied_at: new Date().toISOString() })
       .eq("id", reviewId);
 
     if (error) {
       toast.error("Erreur lors de la sauvegarde");
     } else {
       setReviews(prev =>
-        prev.map(r => r.id === reviewId ? { ...r, owner_reply: text.trim(), replied_at: new Date().toISOString() } : r)
+        prev.map(r => r.id === reviewId ? { ...r, reply: text.trim(), replied_at: new Date().toISOString() } : r)
       );
       setReplyingTo(null);
       toast.success("Réponse enregistrée");
@@ -97,7 +97,7 @@ export function ReviewsView({ initialReviews, restaurantId }: { initialReviews: 
     ? (reviews.reduce((s, r) => s + r.rating, 0) / reviews.length).toFixed(1)
     : "—";
 
-  const pendingCount = reviews.filter(r => !r.owner_reply).length;
+  const pendingCount = reviews.filter(r => !r.reply).length;
 
   const ratingDist = [5, 4, 3, 2, 1].map(s => ({
     star: s,
@@ -198,7 +198,7 @@ export function ReviewsView({ initialReviews, restaurantId }: { initialReviews: 
                       </div>
                     </div>
                   </div>
-                  {r.owner_reply && (
+                  {r.reply && (
                     <span className="flex-shrink-0 text-xs bg-emerald-500/10 text-emerald-600 rounded-full px-2 py-0.5 font-medium border border-emerald-500/20">
                       ✓ Répondu
                     </span>
@@ -206,20 +206,20 @@ export function ReviewsView({ initialReviews, restaurantId }: { initialReviews: 
                 </div>
 
                 {/* Content */}
-                {r.comment && (
-                  <p className="mt-3 text-sm text-foreground leading-relaxed">{r.comment}</p>
+                {r.content && (
+                  <p className="mt-3 text-sm text-foreground leading-relaxed">{r.content}</p>
                 )}
 
                 {/* Existing reply */}
-                {r.owner_reply && (
+                {r.reply && (
                   <div className="mt-4 rounded-xl bg-muted/50 p-3 border-l-2 border-primary">
                     <p className="text-xs font-medium text-primary mb-1">Votre réponse</p>
-                    <p className="text-sm text-foreground">{r.owner_reply}</p>
+                    <p className="text-sm text-foreground">{r.reply}</p>
                   </div>
                 )}
 
                 {/* Reply area */}
-                {!r.owner_reply && (
+                {!r.reply && (
                   <div className="mt-4 space-y-2">
                     {replyingTo === r.id ? (
                       <>

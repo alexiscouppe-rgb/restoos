@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import Stripe from "stripe";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: "2025-04-30.basil",
+  apiVersion: "2025-02-24.acacia",
 });
 
 const PRICE_MAP: Record<string, string> = {
@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Restaurant not found" }, { status: 404 });
   }
 
-  const org = restaurant.organizations as { stripe_customer_id: string | null; name: string } | null;
+  const org = restaurant.organizations as unknown as { stripe_customer_id: string | null; name: string } | null;
   let customerId = org?.stripe_customer_id;
 
   if (!customerId) {
