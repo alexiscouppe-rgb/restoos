@@ -56,11 +56,23 @@ export async function POST(request: NextRequest) {
   );
 
   if (!reviewsRes.ok) {
-    const err = await reviewsRes.json();
-    return NextResponse.json({ error: err.error?.message ?? "Erreur API Google" }, { status: 500 });
+    let errMsg = `Erreur API Google (${reviewsRes.status})`;
+    try {
+      const err = await reviewsRes.json();
+      errMsg = err.error?.message ?? errMsg;
+    } catch { /* empty body */ }
+    console.error("Google Reviews API error:", reviewsRes.status, errMsg, "locationName:", locationName);
+    return NextResponse.json({ error: errMsg }, { status: 500 });
   }
 
-  const reviewsData = await reviewsRes.json();
+  interface GoogleReview { reviewId: string; starRating: string; reviewer?: { displayName?: string }; comment?: string; createTime: string; reviewReply?: { comment?: string; updateTime?: string } }
+  let reviewsData: { reviews?: GoogleReview[] };
+  try {
+    reviewsData = await reviewsRes.json();
+  } catch {
+    console.error("Google Reviews: réponse JSON vide ou invalide");
+    return NextResponse.json({ error: "Réponse Google invalide — vérifiez le Account Name et Location ID" }, { status: 500 });
+  }
   const googleReviews = reviewsData.reviews ?? [];
   let imported = 0, skipped = 0;
 
