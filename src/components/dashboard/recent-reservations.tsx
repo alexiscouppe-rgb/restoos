@@ -63,7 +63,7 @@ export function RecentReservations({
             Aucune réservation aujourd&apos;hui
           </p>
           <Link
-            href="/dashboard/reservations/new"
+            href="/dashboard/reservations"
             className="mt-3 text-xs text-primary hover:underline"
           >
             Ajouter une réservation
