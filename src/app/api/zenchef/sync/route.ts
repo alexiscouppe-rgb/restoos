@@ -78,8 +78,14 @@ export async function POST(request: NextRequest) {
     let page = 1, hasMore = true;
     while (hasMore) {
       const res = await fetch(`${baseUrl}/bookings?restaurant_id=${zenchefId}&limit=100&page=${page}`, { headers });
-      if (!res.ok) break;
+      if (!res.ok) {
+        console.error(`Zenchef bookings API error: ${res.status} ${res.statusText}`);
+        const errText = await res.text().catch(() => "");
+        console.error("Response:", errText.slice(0, 500));
+        break;
+      }
       const data = await res.json();
+      console.log("Zenchef bookings response keys:", Object.keys(data), "count:", Array.isArray(data) ? data.length : (data.data?.length ?? data.bookings?.length ?? "?"));
       const bookings: ZenchefBooking[] = data.data ?? data.bookings ?? data ?? [];
       if (!bookings.length) { hasMore = false; break; }
 
@@ -91,12 +97,12 @@ export async function POST(request: NextRequest) {
             const { data: existing } = await admin.from("contacts").select("id").eq("restaurant_id", restaurantId).or(conditions).maybeSingle();
             if (existing) { contactId = existing.id; }
             else {
-              const { data: nc } = await admin.from("contacts").insert({ restaurant_id: restaurantId, first_name: booking.customer.firstname ?? null, last_name: booking.customer.lastname ?? null, email: booking.customer.email ?? null, phone: booking.customer.phone ?? null, visit_count: 0 }).select("id").single();
+              const { data: nc } = await admin.from("contacts").insert({ restaurant_id: restaurantId, first_name: booking.customer.firstname ?? null, last_name: booking.customer.lastname ?? null, email: booking.customer.email ?? null, phone: booking.customer.phone ?? null, total_visits: 0 }).select("id").single();
               contactId = nc?.id ?? null;
             }
           }
           const reservedAt = new Date(`${booking.date}T${booking.time ?? "12:00"}:00`);
-          const { error } = await admin.from("reservations").upsert({ restaurant_id: restaurantId, contact_id: contactId, guest_name: [booking.customer?.firstname, booking.customer?.lastname].filter(Boolean).join(" ") || "Client", guest_email: booking.customer?.email ?? null, guest_phone: booking.customer?.phone ?? null, party_size: booking.covers ?? 2, reserved_at: reservedAt.toISOString(), status: mapStatus(booking.status ?? "confirmed"), notes: booking.comment ?? null, source: "zenchef", external_id: String(booking.id) }, { onConflict: "restaurant_id,external_id" });
+          const { error } = await admin.from("reservations").upsert({ restaurant_id: restaurantId, contact_id: contactId, guest_name: [booking.customer?.firstname, booking.customer?.lastname].filter(Boolean).join(" ") || "Client", guest_email: booking.customer?.email ?? null, guest_phone: booking.customer?.phone ?? null, party_size: booking.covers ?? 2, reserved_at: reservedAt.toISOString(), status: mapStatus(booking.status ?? "confirmed"), internal_notes: booking.comment ?? null, source: "zenchef", external_id: String(booking.id) }, { onConflict: "restaurant_id,external_id" });
           if (error) results.reservations.skipped++; else results.reservations.imported++;
         } catch { results.reservations.skipped++; }
       }
@@ -115,7 +121,7 @@ export async function POST(request: NextRequest) {
 
       for (const c of customers) {
         try {
-          const { error } = await admin.from("contacts").upsert({ restaurant_id: restaurantId, first_name: c.firstname ?? null, last_name: c.lastname ?? null, email: c.email ?? null, phone: c.phone ?? null, is_vip: c.vip ?? false, tags: c.tags ?? [], notes: c.comment ?? null, visit_count: c.totalBookings ?? 0 }, { onConflict: "restaurant_id,email" });
+          const { error } = await admin.from("contacts").upsert({ restaurant_id: restaurantId, first_name: c.firstname ?? null, last_name: c.lastname ?? null, email: c.email ?? null, phone: c.phone ?? null, is_vip: c.vip ?? false, tags: c.tags ?? [], notes: c.comment ?? null, total_visits: c.totalBookings ?? 0 }, { onConflict: "restaurant_id,email" });
           if (error) results.contacts.skipped++; else results.contacts.imported++;
         } catch { results.contacts.skipped++; }
       }
