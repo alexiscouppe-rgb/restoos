@@ -3,8 +3,15 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import {
-  CheckCircle2, AlertCircle, RefreshCw, Loader2, ExternalLink, Zap, Settings2
+  CheckCircle2, AlertCircle, RefreshCw, Loader2, ExternalLink, Zap, Settings2, MapPin
 } from "lucide-react";
+
+interface Location {
+  accountName: string;
+  locationId: string;
+  locationName: string;
+  title: string;
+}
 
 interface GoogleConnectProps {
   restaurantId: string;
@@ -25,12 +32,48 @@ export function GoogleConnect({ restaurantId, integration, autoReplyEnabled }: G
   const [locationId, setLocationId] = useState(integration?.settings?.location_id ?? "");
   const [locationTitle, setLocationTitle] = useState(integration?.settings?.location_title ?? "");
   const [savingConfig, setSavingConfig] = useState(false);
+  const [detecting, setDetecting] = useState(false);
+  const [locations, setLocations] = useState<Location[]>([]);
 
   const isConnected = !!integration?.is_active;
   const isConfigured = !!(integration?.settings?.account_name && integration?.settings?.location_id);
 
   function handleConnect() {
     window.location.href = `/api/auth/google?restaurantId=${restaurantId}`;
+  }
+
+  async function detectLocations() {
+    setDetecting(true);
+    setLocations([]);
+    try {
+      const res = await fetch(`/api/google/accounts?restaurantId=${restaurantId}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      if (data.locations.length === 0) {
+        toast.error("Aucun établissement Google trouvé sur ce compte");
+        return;
+      }
+      setLocations(data.locations);
+      // Si un seul établissement, le sélectionner automatiquement
+      if (data.locations.length === 1) {
+        const loc = data.locations[0];
+        setAccountName(loc.accountName);
+        setLocationId(loc.locationId);
+        setLocationTitle(loc.title);
+        toast.success(`Établissement détecté : ${loc.title}`);
+      }
+    } catch (err: unknown) {
+      toast.error((err as Error).message);
+    } finally {
+      setDetecting(false);
+    }
+  }
+
+  function selectLocation(loc: Location) {
+    setAccountName(loc.accountName);
+    setLocationId(loc.locationId);
+    setLocationTitle(loc.title);
+    setLocations([]);
   }
 
   async function handleSync() {
@@ -45,7 +88,11 @@ export function GoogleConnect({ restaurantId, integration, autoReplyEnabled }: G
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       setSyncResult({ imported: data.imported, total: data.total });
-      toast.success(`${data.imported} avis synchronisés depuis Google`);
+      if (data.imported > 0) {
+        toast.success(`${data.imported} avis synchronisés depuis Google`);
+      } else {
+        toast.success(`Synchronisation terminée — ${data.total} avis déjà à jour`);
+      }
     } catch (err: unknown) {
       toast.error((err as Error).message);
     } finally {
@@ -73,7 +120,7 @@ export function GoogleConnect({ restaurantId, integration, autoReplyEnabled }: G
       const res = await fetch("/api/google/configure", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ restaurantId, accountName, locationId, locationTitle: locationTitle || "Le Chat" }),
+        body: JSON.stringify({ restaurantId, accountName, locationId, locationTitle: locationTitle || "Mon établissement" }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
@@ -140,17 +187,51 @@ export function GoogleConnect({ restaurantId, integration, autoReplyEnabled }: G
           </button>
         </div>
       ) : !isConfigured || showManualConfig ? (
-        /* Configuration manuelle */
+        /* Configuration avec auto-détection */
         <div className="space-y-4">
-          <div className="rounded-xl bg-amber-500/10 border border-amber-500/20 p-3 text-xs text-amber-700">
-            ⚠️ L'auto-détection de votre établissement a échoué (quota API). Configurez manuellement ci-dessous.
+          {/* Bouton auto-détection */}
+          <button
+            onClick={detectLocations}
+            disabled={detecting}
+            className="w-full inline-flex items-center justify-center gap-2 rounded-xl border border-primary/30 bg-primary/5 px-4 py-3 text-sm font-semibold text-primary hover:bg-primary/10 disabled:opacity-60 transition-all"
+          >
+            {detecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <MapPin className="h-4 w-4" />}
+            {detecting ? "Détection en cours…" : "Détecter automatiquement mon établissement"}
+          </button>
+
+          {/* Liste des établissements détectés */}
+          {locations.length > 1 && (
+            <div className="rounded-xl border border-border overflow-hidden">
+              <p className="text-xs font-medium text-muted-foreground px-3 py-2 bg-muted/50 border-b border-border">
+                {locations.length} établissement{locations.length > 1 ? "s" : ""} trouvé{locations.length > 1 ? "s" : ""} — sélectionne le tien
+              </p>
+              {locations.map((loc) => (
+                <button
+                  key={loc.locationId}
+                  onClick={() => selectLocation(loc)}
+                  className="w-full flex items-center justify-between px-3 py-3 hover:bg-accent transition-colors border-b border-border last:border-0 text-left"
+                >
+                  <div>
+                    <p className="text-sm font-medium text-foreground">{loc.title}</p>
+                    <p className="text-xs text-muted-foreground font-mono">{loc.locationId}</p>
+                  </div>
+                  <CheckCircle2 className="h-4 w-4 text-muted-foreground/40" />
+                </button>
+              ))}
+            </div>
+          )}
+
+          <div className="relative flex items-center gap-3">
+            <div className="flex-1 h-px bg-border" />
+            <span className="text-xs text-muted-foreground">ou saisir manuellement</span>
+            <div className="flex-1 h-px bg-border" />
           </div>
 
           <div className="space-y-3">
             <div>
               <label className="block text-xs font-medium mb-1.5 text-muted-foreground">
                 Account Name
-                <span className="ml-1 font-normal">— trouvé via l'API ou dans l'URL business.google.com</span>
+                <span className="ml-1 font-normal">— ex: accounts/123456789</span>
               </label>
               <input
                 type="text"
@@ -163,7 +244,7 @@ export function GoogleConnect({ restaurantId, integration, autoReplyEnabled }: G
             <div>
               <label className="block text-xs font-medium mb-1.5 text-muted-foreground">
                 Location ID
-                <span className="ml-1 font-normal">— dans l'URL de votre fiche Google Business</span>
+                <span className="ml-1 font-normal">— dans l'URL Google Business</span>
               </label>
               <input
                 type="text"
@@ -179,22 +260,14 @@ export function GoogleConnect({ restaurantId, integration, autoReplyEnabled }: G
                 type="text"
                 value={locationTitle}
                 onChange={(e) => setLocationTitle(e.target.value)}
-                placeholder="Le Chat"
+                placeholder="Mon restaurant"
                 className="w-full rounded-xl border border-input bg-background px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
               />
             </div>
 
-            <div className="rounded-xl bg-muted/50 p-3 text-xs text-muted-foreground space-y-1">
-              <p className="font-medium text-foreground">Comment trouver ces infos :</p>
-              <p>1. Va sur <a href="https://business.google.com" target="_blank" className="underline text-primary">business.google.com</a></p>
-              <p>2. Clique sur ton établissement "Le Chat"</p>
-              <p>3. L'URL ressemble à : <code className="bg-background px-1 rounded">…/dashboard/l/LOCATION_ID</code></p>
-              <p>4. Pour l'Account Name : utilise <code className="bg-background px-1 rounded">accounts/</code> + ton ID de compte Google</p>
-            </div>
-
             <button
               onClick={saveManualConfig}
-              disabled={savingConfig}
+              disabled={savingConfig || !accountName || !locationId}
               className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-60 transition-all"
             >
               {savingConfig && <Loader2 className="h-4 w-4 animate-spin" />}
