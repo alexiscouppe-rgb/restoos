@@ -50,24 +50,38 @@ export async function GET(request: NextRequest) {
   let locationTitle: string | null = null;
 
   try {
-    const accountsRes = await fetch(
+    const authHeader = { Authorization: `Bearer ${tokens.access_token}` };
+    // Essayer nouvelle API puis legacy v4
+    for (const endpoint of [
       "https://mybusinessaccountmanagement.googleapis.com/v1/accounts",
-      { headers: { Authorization: `Bearer ${tokens.access_token}` } }
-    );
-    const accountsData = await accountsRes.json();
-    const account = accountsData.accounts?.[0];
-    if (account) {
-      accountName = account.name;
-      const locationsRes = await fetch(
-        `https://mybusinessbusinessinformation.googleapis.com/v1/${account.name}/locations?readMask=name,title`,
-        { headers: { Authorization: `Bearer ${tokens.access_token}` } }
-      );
-      const locationsData = await locationsRes.json();
-      const location = locationsData.locations?.[0];
-      if (location) {
-        locationId = location.name?.split("/").pop() ?? null;
-        locationTitle = location.title ?? null;
-      }
+      "https://mybusiness.googleapis.com/v4/accounts",
+    ]) {
+      try {
+        const res = await fetch(endpoint, { headers: authHeader });
+        if (!res.ok) continue;
+        const data = await res.json();
+        const account = data.accounts?.[0];
+        if (!account) continue;
+        accountName = account.name;
+        // Lister les établissements
+        for (const locEndpoint of [
+          `https://mybusinessbusinessinformation.googleapis.com/v1/${account.name}/locations?readMask=name,title`,
+          `https://mybusiness.googleapis.com/v4/${account.name}/locations`,
+        ]) {
+          try {
+            const locRes = await fetch(locEndpoint, { headers: authHeader });
+            if (!locRes.ok) continue;
+            const locData = await locRes.json();
+            const location = (locData.locations ?? [])[0];
+            if (location) {
+              locationId = location.name?.split("/").pop() ?? null;
+              locationTitle = location.title ?? location.locationName ?? null;
+              break;
+            }
+          } catch { continue; }
+        }
+        break;
+      } catch { continue; }
     }
   } catch { /* non bloquant */ }
 
