@@ -64,24 +64,53 @@ export async function POST(request: NextRequest) {
 
   const token = integration.credentials?.api_token;
   const zenchefId = integration.settings?.zenchef_restaurant_id;
-  const baseUrl = integration.settings?.base_url ?? "https://api.zenchef.com/v1/partners";
+
+  // Zenchef Partner API — essayer plusieurs formats d'URL
+  const urlVariants = [
+    `https://api.zenchef.com/v1/bookings?restaurantId=${zenchefId}`,
+    `https://api.zenchef.com/v1/bookings?restaurant_id=${zenchefId}`,
+    `https://api.zenchef.com/v1/partners/restaurants/${zenchefId}/bookings`,
+    `https://api.zenchef.com/v1/restaurants/${zenchefId}/bookings`,
+  ];
 
   const headers = {
     Accept: "application/json",
+    "Content-Type": "application/json",
     Authorization: `Bearer ${token}`,
+    "X-Auth-Token": token,
     "X-Api-Token": token,
   };
+
+  // Détecter le bon endpoint
+  let workingBase: string | null = null;
+  for (const url of urlVariants) {
+    try {
+      const probe = await fetch(url + "&limit=1&page=1", { headers });
+      const txt = await probe.text();
+      console.log(`Zenchef probe ${url}: status=${probe.status} body=${txt.slice(0, 200)}`);
+      if (probe.status !== 404 && !txt.includes('"Invalid URL"')) {
+        workingBase = url;
+        break;
+      }
+    } catch { /* continue */ }
+  }
+
+  if (!workingBase) {
+    console.error("Zenchef: aucun endpoint valide trouvé");
+    return NextResponse.json({ success: false, error: "Zenchef endpoint introuvable — vérifiez vos credentials", results: { reservations: { imported: 0, skipped: 0 }, contacts: { imported: 0, skipped: 0 } } });
+  }
+
+  console.log("Zenchef working endpoint:", workingBase);
 
   const results = { reservations: { imported: 0, skipped: 0 }, contacts: { imported: 0, skipped: 0 } };
 
   if (mode === "all" || mode === "reservations") {
     let page = 1, hasMore = true;
     while (hasMore) {
-      const res = await fetch(`${baseUrl}/bookings?restaurant_id=${zenchefId}&limit=100&page=${page}`, { headers });
+      const url = `${workingBase}&limit=100&page=${page}`;
+      const res = await fetch(url, { headers });
       if (!res.ok) {
         console.error(`Zenchef bookings API error: ${res.status} ${res.statusText}`);
-        const errText = await res.text().catch(() => "");
-        console.error("Response:", errText.slice(0, 500));
         break;
       }
       const data = await res.json();
@@ -111,9 +140,13 @@ export async function POST(request: NextRequest) {
   }
 
   if (mode === "all" || mode === "contacts") {
+    // Adapter le endpoint contacts depuis le endpoint bookings trouvé
+    const contactsBase = workingBase
+      .replace("/bookings", "/customers")
+      .replace("/reservations", "/customers");
     let page = 1, hasMore = true;
     while (hasMore) {
-      const res = await fetch(`${baseUrl}/customers?restaurant_id=${zenchefId}&limit=100&page=${page}`, { headers });
+      const res = await fetch(`${contactsBase}&limit=100&page=${page}`, { headers });
       if (!res.ok) break;
       const data = await res.json();
       const customers: ZenchefCustomer[] = data.data ?? data.customers ?? data ?? [];
